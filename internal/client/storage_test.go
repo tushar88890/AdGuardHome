@@ -479,3 +479,43 @@ func TestStorage_RangeByName(t *testing.T) {
 		})
 	}
 }
+
+func TestStorage_UpdateRuntime(t *testing.T) {
+	const (
+		addedARP = "added_arp"
+
+		updatedARP       = "updated_arp"
+		updatedHostsFile = "updated_hosts"
+	)
+
+	ip := netip.MustParseAddr("1.1.1.1")
+
+	added := client.NewRuntime(ip)
+	added.SetInfo(client.SourceARP, []string{addedARP})
+
+	updated := client.NewRuntime(ip)
+	updated.SetInfo(client.SourceARP, []string{updatedARP})
+	updated.SetInfo(client.SourceHostsFile, []string{updatedHostsFile})
+
+	s := newStorage(t, nil)
+
+	s.UpdateRuntime(added)
+	got := s.ClientRuntime(ip)
+	source, host := got.Info()
+	assert.Equal(t, client.SourceARP, source)
+	assert.Equal(t, addedARP, host)
+
+	s.UpdateRuntime(updated)
+	got = s.ClientRuntime(ip)
+	source, host = got.Info()
+	assert.Equal(t, client.SourceHostsFile, source)
+	assert.Equal(t, updatedHostsFile, host)
+
+	n := s.DeleteBySource(client.SourceHostsFile)
+	require.Equal(t, 0, n)
+
+	got = s.ClientRuntime(ip)
+	source, host = got.Info()
+	assert.Equal(t, client.SourceARP, source)
+	assert.Equal(t, updatedARP, host)
+}

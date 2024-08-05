@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 
 	"github.com/AdguardTeam/golibs/container"
@@ -31,8 +32,6 @@ type Storage struct {
 	index *index
 
 	// runtimeIndex contains information about runtime clients.
-	//
-	// TODO(s.chzhen):  Use it.
 	runtimeIndex *RuntimeIndex
 }
 
@@ -236,20 +235,68 @@ func (s *Storage) ClientRuntime(ip netip.Addr) (rc *Runtime) {
 	return s.runtimeIndex.Client(ip)
 }
 
-// AddRuntime saves the runtime client information in the storage.  IP address
-// of a client must be unique.  rc must not be nil.
-//
-// TODO(s.chzhen):  Use it.
-func (s *Storage) AddRuntime(rc *Runtime) {
+// UpdateRuntime updates the stored runtime client with information from rc.  If
+// no such client exists, saves the copy of rc in storage.  rc must not be nil.
+func (s *Storage) UpdateRuntime(rc *Runtime) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.runtimeIndex.Add(rc)
+	s.updateRuntimeLocked(rc)
+}
+
+// updateRuntimeLocked updates the stored runtime client with information from
+// rc.  rc must not be nil.  Storage.mu is expected to be locked.
+func (s *Storage) updateRuntimeLocked(rc *Runtime) {
+	stored := s.runtimeIndex.Client(rc.ip)
+	if stored == nil {
+		s.runtimeIndex.Add(rc.Clone())
+
+		return
+	}
+
+	if rc.whois != nil {
+		stored.whois = rc.whois.Clone()
+	}
+
+	if rc.arp != nil {
+		stored.arp = slices.Clone(rc.arp)
+	}
+
+	if rc.rdns != nil {
+		stored.rdns = slices.Clone(rc.rdns)
+	}
+
+	if rc.dhcp != nil {
+		stored.dhcp = slices.Clone(rc.dhcp)
+	}
+
+	if rc.hostsFile != nil {
+		stored.hostsFile = slices.Clone(rc.hostsFile)
+	}
+}
+
+// BatchUpdateBySource updates the stored runtime clients information from the
+// specified source.
+func (s *Storage) BatchUpdateBySource(src Source, rcs []*Runtime) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, rc := range s.runtimeIndex.index {
+		rc.unset(src)
+	}
+
+	for _, rc := range rcs {
+		s.updateRuntimeLocked(rc)
+	}
+
+	for ip, rc := range s.runtimeIndex.index {
+		if rc.isEmpty() {
+			delete(s.runtimeIndex.index, ip)
+		}
+	}
 }
 
 // SizeRuntime returns the number of the runtime clients.
-//
-// TODO(s.chzhen):  Use it.
 func (s *Storage) SizeRuntime() (n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -258,23 +305,11 @@ func (s *Storage) SizeRuntime() (n int) {
 }
 
 // RangeRuntime calls f for each runtime client in an undefined order.
-//
-// TODO(s.chzhen):  Use it.
 func (s *Storage) RangeRuntime(f func(rc *Runtime) (cont bool)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.runtimeIndex.Range(f)
-}
-
-// DeleteRuntime removes the runtime client by ip.
-//
-// TODO(s.chzhen):  Use it.
-func (s *Storage) DeleteRuntime(ip netip.Addr) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.runtimeIndex.Delete(ip)
 }
 
 // DeleteBySource removes all runtime clients that have information only from
