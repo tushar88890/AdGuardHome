@@ -643,7 +643,7 @@ func (clients *clientsContainer) addFromHostsFile(hosts *hostsfile.DefaultStorag
 	defer clients.lock.Unlock()
 
 	added := 0
-	rcs := []*client.Runtime{}
+	var rcs []*client.Runtime
 	hosts.RangeNames(func(addr netip.Addr, names []string) (cont bool) {
 		// Only the first name of the first record is considered a canonical
 		// hostname for the IP address.
@@ -685,7 +685,7 @@ func (clients *clientsContainer) addFromSystemARP() {
 	defer clients.lock.Unlock()
 
 	added := 0
-	rcs := []*client.Runtime{}
+	var rcs []*client.Runtime
 	for _, n := range ns {
 		rc := client.NewRuntime(n.IP)
 		rc.SetInfo(client.SourceARP, []string{n.Name})
