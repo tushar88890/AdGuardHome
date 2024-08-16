@@ -1,7 +1,7 @@
-# Security Policy
+##security Security only my 
 
 ## Reporting vulnerabilities
-
+Android phone 
 Please send your vulnerability reports to <security@adguard.com>.  To make sure that your report reaches us, please:
 
 1. Include the words “AdGuard Home” and “vulnerability” to the subject line as well as a short description of the vulnerability.  For example:
